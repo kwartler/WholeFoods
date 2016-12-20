@@ -1,0 +1,490 @@
+<!-- COUNTYDATA -->
+
+<!-- class9_zoom -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+
+body {
+	background-color: #232323;
+}
+
+.counties {
+	fill: #d3d3d6;
+	opacity:2;
+    stroke: #DED;
+    stroke-width: .35;
+    stroke-dasharray: 1, 1;
+}
+.background {
+  fill: none;
+}
+#countyText {   
+    position: absolute;         
+    text-align: center;
+/*    width: 60px;                  
+    height: 28px;   */              
+    padding: 2px;               
+    font: 12px sans-serif;      
+    background: lightsteelblue; 
+    border: 0px;        
+    border-radius: 8px;         
+    pointer-events: none;
+    opacity: 0;         
+}
+
+#dropdowns {
+	margin-left: 25px;
+	margin-right: 25px;
+	margin-bottom: 20px;
+	padding-left:25px;
+	padding-right: 40px;
+}
+
+#dropdowns select{
+	float: left;
+	min-width: 100px;
+	height: 30px;
+	margin-left: 25px;
+	margin-right: 25px;
+	padding-left:25px;
+	padding-right: 25px;
+
+	background-color: #4CAF50;
+    color: #e3e3e3;
+    padding: 16px;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+}
+
+#ftr_title {
+	margin: auto;
+	vertical-align: center;
+	text-align: center;
+	font-size: 32px;
+	font-family: serif;
+	text-decoration: underline;
+	color: limegreen;
+}
+
+#info pre {
+	position: absolute;
+	left : 1100px;
+	top : 300px;
+	width: 200px;
+	padding: 20px;
+	background-color: #AAA;
+	font-size: 16px;
+	font-family: garamond sans-serif;
+	color: brown;
+	border-radius: 30px;
+	opacity: 0.0;
+}
+
+#lgnd {
+	color:#d3d3d6;
+}
+
+</style>
+<body>
+<pre id='countyText'> </pre>
+
+<div id = 'dropdowns'>
+	<select id = 'ftr'></select>
+</div>
+
+
+<div id='head'>
+<h1 id = ftr_title>Whole Foods</h1>
+<hr style="color:limegreen">
+</div>
+
+<div id='lgnd'>
+	<input type = 'checkbox' id = "showPredicted" value = 'Show Predicted'> Show Predicted <br>
+	<input type = 'checkbox' id = "showActual" value = 'Show Actual'> Show Actual
+</div>
+
+</body>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/d3/4.2.8/d3.min.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script type="text/javascript">
+  
+
+// Range function ala python
+function Range(start, stop, step) {
+    if (typeof stop == 'undefined') {
+        // one param defined
+        stop = start;
+        start = 0;
+    }
+
+    if (typeof step == 'undefined') {
+        step = 1;
+    }
+
+    if ((step > 0 && start >= stop) || (step < 0 && start <= stop)) {
+        return [];
+    }
+
+    var result = [];
+    for (var i = start; step > 0 ? i < stop : i > stop; i += step) {
+        result.push(i);
+    }
+
+    return result;
+};
+
+
+// TEST MEMBERSHIP
+
+Array.prototype.contains = function(obj) {
+    var i = this.length;
+    while (i--) {
+        if (this[i] === obj) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
+
+
+// SVG PARAMS AND MAP SETUP
+var width = 1240,
+    height = 880,
+    centered;
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+var projection = d3.geo.albersUsa()
+    .scale(1300)
+    .translate([width / 2, (height / 2)-100 ]);
+
+var path = d3.geo.path()
+    .projection(projection);
+
+svg.append("rect")
+    .attr("class", "background")
+    .attr("width", width)
+    .attr("height", height)
+    .on("click", clicked);
+
+var g = svg.append("g")
+
+
+
+//var reds = 'FF3333, EE3333, DD3333, CC3333, BB3333, aa3333, 993333'
+
+var reds = ['#E3E3e6',"#ffcc00", "#ffbb00",  "#ffaa00", "#ff9900",  "#ff8800", "#ff7700",  "#ff8800",  
+"#ff6600",  "#ff5500", "#ff4400", "#ff3300", "#ff2200", "#ff1100",  
+"#ff0000", "#EE0000", "#dd0000", "#cc0000", '#bb0000', '#aa0000','#990000']
+
+var drange = Range(0,30, 30/(reds.length-1))
+drange.splice(1,0,0.01)
+
+
+var colorScale = d3.scale.linear() 
+	.domain(drange)
+	.range(reds)
+
+
+queue()
+    .defer(d3.csv, "COUNTYDATA.csv")
+    .defer(d3.json, "us.json")
+    .await(ready);
+
+// INITIAL RENDERING OF MAP
+function ready(error, cdata, us) {
+	if (error) {return console.warn(error)};
+	console.log(cdata)
+
+	var countyFeatures = topojson.feature(us, us.objects.counties).features;
+	var stateFeatures = topojson.feature(us, us.objects.states).features;
+	console.log(countyFeatures)
+
+	var countyLookup = {};
+	var ftrsLookup = {}
+	// FOR ACTUAL NUMBERS
+	cdata.forEach(function(d,i) {
+		// convert to numbers
+		for(var attr in d){
+			if (isNaN(parseFloat(d[attr]))){
+				continue
+			}
+			else{
+				d[attr] = parseFloat(d[attr])
+			}
+		}
+	countyLookup[d.fips] = d;
+	})
+
+	countyFeatures.forEach(function(d,i) {
+	ftrsLookup[d.id] = d;
+	})
+
+	window.countyLookup = countyLookup
+
+
+
+	ftr_array = Object.keys(countyLookup[1001])
+	ftrs_drop = ['fips', 'county','state']
+	for (i=0; i<ftrs_drop.length; i++){
+		idx = ftr_array.indexOf(ftrs_drop[i])
+		ftr_array.splice(idx,1)
+	}
+
+	// CREATE DROPDOWN
+	d3.select('#dropdowns #ftr').selectAll('option')
+		.data(ftr_array)
+		.enter().append('option')
+			.property('value', function(d){return d})
+			.text(function(d){ return d.toUpperCase()})
+	
+	d3.select('#dropdowns #ftr')
+		.on('change', function(){setColor(this.value);})
+
+	// d3.select('#dropdowns')
+	// 	.on('change', function(){currentCompany = this.value; updateChart(currentCompany, currentMetric)})
+
+
+
+	// RENDER THE MAP
+	g.append("g")
+		.attr("id", "county")
+		.selectAll(".counties")
+		.data(countyFeatures)
+		.enter().append("path")
+		.attr("class","counties")
+		.attr("d", path)
+		.transition()
+			.duration(1500)
+			.style("fill", function(d) {
+		    	return countyLookup[d.id] == undefined ? '#e3e3e6' : colorScale(countyLookup[d.id].wholefoods);
+			}) 
+			.style('fill-opacity', function(d){
+				return (countyLookup[d.id] == undefined || countyLookup[d.id].wholefoods == 0) ? 0.25 : 1; 
+			})
+	g.selectAll('.counties')
+		.on("click", clicked)
+		.on("mouseenter", function(d) {
+			d3.select(this)
+			.style("stroke-width", 1.5)
+			.style("stroke-dasharray", 0)
+			d3.select("#countyText")
+			.transition()
+			.style("opacity", 1)
+			.style("left", (d3.event.pageX) + "px")
+			.style("top", (d3.event.pageY) + "px")
+			.text(countyLookup[d.id] == undefined ? "No Data for " + d.id : countyLookup[d.id].county + '\nWHOLEFOODS: ' + countyLookup[d.id].wholefoods)
+		})
+		.on("mouseleave", function(d) { 
+			d3.select(this)
+			.style("stroke-width", .25)
+			.style("stroke-dasharray", 1)
+			d3.select("#countyText")
+			.transition()
+			.style("opacity", 0);
+		})
+
+	// MAKE STATE BORDERS THICKER
+	g.append("g")
+		.attr("id", "state")
+		.selectAll(".states")
+		.data(stateFeatures)
+		.enter().append("path")
+		.attr("class","states")
+		.attr("d", path)
+		.style("fill", "none")
+		.style('opacity', 0.88)
+		.style("stroke","#2A0")
+
+
+
+	//FOR BUBBLES
+	g.selectAll(".actual")
+		.data(cdata.filter(function(d){return d.Actual == 1}))
+		.enter().append("g")
+		.attr("class","bubbles actual")
+		.attr("transform",function(d) { 
+			var coords = path.centroid(ftrsLookup[d.fips])
+			var cbox = d3.select('#showPredicted')
+			if ((d.Predicted == 1) && (cbox.checked == true)){
+				coords[0]-=coords[0]*0.005
+			}
+			return "translate(" + coords + ")"
+		})
+		.append("circle")
+		.attr("r", "0px")
+		.style("fill", '#0375E4')
+		.style("fill-opacity", .8)
+		.style("pointer-events","none")
+
+	g.selectAll(".predicted")
+		.data(cdata.filter(function(d){return d.Predicted == 1}))
+		.enter().append("g")
+		.attr("class","bubbles predicted")
+		.attr("transform",function(d) { 
+			var coords = path.centroid(ftrsLookup[d.fips])
+			var cbox = d3.select("#showActual")
+			if ((d.Actual == 1) && (cbox.checked == true)){
+				coords[0]+=coords[0]*0.005
+			}
+			return "translate(" + coords + ")"
+		})
+		.append("circle")
+		.attr("r", "0px")
+		.style("fill", 'navy')
+		.style("fill-opacity", 0.8)
+		.style("pointer-events","none")	
+
+	// LINK CHECKBOXES TO CIRCLES
+	d3.select("#showActual")
+		.on('change', showActual)
+	d3.select("#showPredicted")
+		.on('change', showPredicted)	
+
+
+} // END READY FUNC
+
+function showActual(){
+	console.log(this.checked)
+	if (this.checked == true){
+		d3.selectAll('.bubbles.actual circle')
+		.transition()
+		.duration(1000)
+		.ease(d3.ease("elastic", 5, 0.5))
+		.attr('r','4px')
+	}
+	else {
+		d3.selectAll('.bubbles.actual circle')
+		.transition()
+		.duration(900)
+		.attr('r','0px')
+	}
+}
+
+function showPredicted(){
+	console.log(this.checked)
+	if (this.checked == true){
+		d3.selectAll('.bubbles.predicted circle')
+		.transition()
+		.duration(1000)
+		.ease(d3.ease("elastic", 5, 0.5))
+		.attr('r','4px')
+	}
+	else {
+		d3.selectAll('.bubbles.predicted circle')
+		.transition()
+		.duration(900)
+		.attr('r','0px')
+	}
+}
+
+
+
+
+function clicked(d) {
+	var x, y, k;
+	console.log(d);
+	if (d && centered !== d) {
+		var centroid = path.centroid(d);
+		x = centroid[0];
+		y = centroid[1];
+		k = 4;
+		centered = d;
+	} 
+	else {
+		x = width / 2;
+		y = height / 2;
+		k = 1;
+		centered = null;
+  	}
+  	g.selectAll("path")
+    	.classed("active", centered && function(d) { return d === centered; });
+  	g.transition()
+    	.duration(750)
+    	.attr("transform", "translate(" + width / 2 + "," + height / 2 + ")scale(" + k + ")translate(" + -x + "," + -y + ")")
+    	.style("stroke-width", 1.5 / k + "px");
+}
+
+
+
+
+// FUNCTION TO CHANGE COLOR OF MAP BY VARIABLE:
+function setColor(ftr){
+	console.log(ftr)
+	ftr_data = Object.keys(countyLookup).map(function(d){return countyLookup[d][ftr]})
+
+	// REASSIGN DOMAIN AND RANGE OF COLOR SCALE
+	if (ftr.includes('pct')){
+		var drange = Range(0,100, 100/(reds.length))
+	}
+	else {
+		var drange = Range(0,d3.max(ftr_data), d3.max(ftr_data)/(reds.length-1))
+		drange.splice(1,0,0.01)
+	}
+	
+	colorScale
+		.domain(drange)
+		.range(reds)
+
+	// COLORIZE COUNTIES ACCORDINGLY
+	g.selectAll('.counties')
+		.transition()
+			.duration(1500)
+			.style("fill", function(d) {
+				return countyLookup[d.id] == undefined ? '#e3e3e6' : colorScale(countyLookup[d.id][ftr]); 
+			}) 
+			.style('fill-opacity', function(d){
+				return (countyLookup[d.id] == undefined || countyLookup[d.id][ftr] == 0) ? 0.25 : 1; 
+			})
+
+
+	// Heading
+	d3.select('#head').select('h1')
+		.text(ftr.toUpperCase())
+
+
+	// REINSTATIATE TOOLTIP WITH MOST RECENT FTR STATS AS TEXT
+	g.selectAll('.counties')
+			.on("mouseenter", function(d) {
+				d3.select(this)
+					.style("stroke-width", 1.5)
+					.style("stroke-dasharray", 0)
+				d3.select("#countyText")
+					.transition()
+					.style("opacity", 1)
+					.style("left", (d3.event.pageX) + "px")
+					.style("top", (d3.event.pageY) + "px")
+					.text(countyLookup[d.id] == null ? "No Data for " + d.id : countyLookup[d.id].county + '\nWHOLEFOODS: '+countyLookup[d.id].wholefoods + '\n' +ftr.toUpperCase()+': ' + countyLookup[d.id][ftr])
+					d3.select('#info pre')
+					.transition()
+					.duration(1500)
+					.style('opacity',1)
+					.text(countyLookup[d.id] == undefined ? d.id + '\n No Data Available' : countyLookup[d.id].county + '\nNum WholeFoods: ' + countyLookup[d.id].wholefoods)
+			})
+			.on("mouseleave", function(d) { 
+				d3.select(this)
+				.style("stroke-width", .25)
+				.style("stroke-dasharray", 1)
+				d3.select("#countyText")
+				.transition()
+				.style("opacity", 0);
+			})
+
+
+}
+
+
+
+
+window.setColor = setColor
+
+</script>
