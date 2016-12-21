@@ -18,4 +18,4 @@ Other important features were pretty much as expected: Wholefoods tend to be loc
 
 Another interesting thing to note was the negative correlation with obesity rates. 92% of all Whole Foods stores were in counties where obesity rate was less than the median (31%). 
 
-You can see the slides I used to present this project [here](linktoslides). And a d3 visualization of demographics across the country [here] (http://bl.ocks.org/rshap91/raw/7d83217a05828988c6f543acfa2f887c/)
+You can see the slides I used to present this project [here](McNultyFinal.pptx), the python code for [analysis](Analysis.ipynb) and a d3 visualization of demographics across the country [here] (http://bl.ocks.org/rshap91/raw/7d83217a05828988c6f543acfa2f887c/)
