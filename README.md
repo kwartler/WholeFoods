@@ -9,7 +9,9 @@ To examine the demographics of counties where there were Whole Foods, I built a 
   - Looking at counties that my model got wrong could be areas worth exploring as possible locations for new Whole Foods Stores
  
  
-Looking
+I used to classifiers to generate predictions and narrow down features. Logistic Regression with L1 (Lasso) regularization and Gradient Boosted Trees. For feature selection, I used a combination of features that had non-zero coefficients for the Lasso and features that were above a given threshold for the Gradient Boosted Trees features importances. This narrowed down my feature set to a size of 30 while still maintaining a nice diversity of demographic statistics. Interestingly, ethnicity statistics were mostly filtered out and seemed to play an insignificant role in my models predictive accuracy.
+
+The unanimous 
  
 
 
